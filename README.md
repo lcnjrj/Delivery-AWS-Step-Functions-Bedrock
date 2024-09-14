@@ -1,3 +1,5 @@
+Teoria e resumo
+
 # Delivery-AWS-Step-Functions-Bedrock
 Desafio DIO  Assistente de Delivery com AWS Step Functions e Bedrock
 
@@ -74,19 +76,25 @@ Figura 1. Arquitetura da solução, tenda a Lambda sendo exposta ao cliente via 
 Como Funciona?
 O exemplo usa Lambda para operar uma máquina de estados construída com o Workflow Express Síncrono do AWS Step Functions, projetada especificamente para orquestrar múltiplas solicitações às APIs do Amazon Bedrock.
 
-Inicialmente, a Lambda invoca a máquina de estados, uma implementação de RAG, e a utiliza como entrada para acionar a API InvokeModelWithResponseStream do Bedrock, resultando em uma resposta transmitida em stream ao solicitante. Para essa implementação, utilizamos o AWS Lambda Web Adapter em conjunto com o FastAPI, permitindo que a função Lambda seja acessada por meio de uma URL do Lambda configurada no modo de Response Stream. Graças à resposta em stream, o TTFB (Time to First Byte) é reduzido, melhorando significativamente a experiência do usuário do assistente GenAI e se adequando aos cenários de serviços voltados para os clientes finais via web.
+Inicialmente, a Lambda invoca a máquina de estados, uma implementação de RAG, e a utiliza como entrada para acionar a API InvokeModelWithResponseStream do Bedrock, resultando em uma resposta transmitida em stream ao solicitante.
+Para essa implementação, utilizamos o AWS Lambda Web Adapter em conjunto com o FastAPI, permitindo que a função Lambda seja acessada por meio de uma URL do Lambda configurada no modo de Response Stream. 
+Graças à resposta em stream, o TTFB (Time to First Byte) é reduzido, melhorando significativamente a experiência do usuário do assistente GenAI e se adequando aos cenários de serviços voltados para os clientes finais via web.
 
-A arquitetura de engenharia de prompt desta solução emprega a técnica de Prompt Chaining, onde as funções Lambda recebem instruções através do parâmetro system, guiando o comportamento do modelo desde a primeira invocação. Este parâmetro contém as instruções para o assistente interagir com o usuário, incluindo especificações sobre o papel, o tom e diretrizes gerais para a interação. Inicialmente, o primeiro prompt é crucial para estabelecer técnicas complexas como Role Playing e Few-Shot Prompting.
+A arquitetura de engenharia de prompt desta solução emprega a técnica de Prompt Chaining, onde as funções Lambda recebem instruções através do parâmetro system, guiando o comportamento do modelo desde a primeira invocação.
+Este parâmetro contém as instruções para o assistente interagir com o usuário, incluindo especificações sobre o papel, o tom e diretrizes gerais para a interação. Inicialmente, o primeiro prompt é crucial para estabelecer técnicas complexas como Role Playing e Few-Shot Prompting.
 
-A Lambda também atua como a última subtarefa do encadeamento de prompts, pronta para utilizar modelos poderosos como os da série Claude. Essa configuração permite a implementação da API InvokeModelWithResponseStream, que, embora envolva modelos com maior tempo de resposta, aproveita o TTFB para oferecer uma resposta com menor latência, melhorando significativamente a responsividade durante as interações com os usuários.
+A Lambda também atua como a última subtarefa do encadeamento de prompts, pronta para utilizar modelos poderosos como os da série Claude.
+Essa configuração permite a implementação da API InvokeModelWithResponseStream, que, embora envolva modelos com maior tempo de resposta, aproveita o TTFB para oferecer uma resposta com menor latência, melhorando significativamente a responsividade durante as interações com os usuários.
 
 Aqui estão alguns cenários onde este padrão pode ser usado:
 
-RAG: Use Step Functions para invocar Bedrock, enriquecendo a entrada do usuário com palavras-chave relevantes ao contexto da conversa e, em seguida, realizar uma busca semântica através das bases de conhecimento do Amazon Bedrock. As tarefas de adicionar palavras-chave e invocar bases de conhecimento, sendo de baixa latência, permitem que a resposta ao usuário seja gerada via stream, melhorando a experiência.
+RAG: Use Step Functions para invocar Bedrock, enriquecendo a entrada do usuário com palavras-chave relevantes ao contexto da conversa e, em seguida, realizar uma busca semântica através das bases de conhecimento do Amazon Bedrock. 
+As tarefas de adicionar palavras-chave e invocar bases de conhecimento, sendo de baixa latência, permitem que a resposta ao usuário seja gerada via stream, melhorando a experiência.
 
 Router: Uma máquina de estado do Step Functions pode atuar como um roteador para combinar cenários determinísticos e não determinísticos, como identificar um potencial churn de cliente e iniciar um workflow de retenção.
 
-Testes A/B: Utilize testes A/B nas Step Functions para uma implementação rápida e low-code, testando diferentes experimentos, fazendo ajustes e selecionando o melhor para seu negócio. Enquanto se concentra nas regras de negócio, a função Lambda serve como uma abstração de interface, eliminando a necessidade de alterar o código ou o contrato da API para cada experimento.
+Testes A/B: Utilize testes A/B nas Step Functions para uma implementação rápida e low-code, testando diferentes experimentos, fazendo ajustes e selecionando o melhor para seu negócio. 
+Enquanto se concentra nas regras de negócio, a função Lambda serve como uma abstração de interface, eliminando a necessidade de alterar o código ou o contrato da API para cada experimento.
 
 Chamadas de API: A entrada do usuário pode solicitar ao LLM que gere dados em formatos como JSON, XML ou uma consulta SQL baseada em uma estrutura de tabela. Esses dados podem então ser usados pelas Step Functions para realizar tarefas que envolvem chamar APIs e executar consultas SQL em bancos de dados. Além disso, a função Lambda pode utilizar a saída das Step Functions para fornecer respostas em stream e explicar os dados gerados.
 
@@ -162,12 +170,21 @@ Recebe os dados de entrada do lambda e os paraleliza para duas tarefas da API Be
 
 A primeira tarefa aprimora a pergunta do usuário adicionando palavras-chave para aumentar a busca semântica.
 
-A segunda tarefa verifica o contexto da conversa e retorna verdadeiro/falso para validar se a recuperação de uma Base de Conhecimento é realmente necessária. Quando evitada, isso reduzirá a latência da resposta.
-Se o resultado for verdadeiro, a Base de Conhecimento é invocada usando a pergunta do usuário + as palavras-chave adicionadas, caso contrário, nenhum conteúdo será adicionado. Observe que há um manipulador de erro se a tarefa de Recuperação falhar. Ele adiciona o conteúdo do erro ao contex_output e usa o prompt_chain_data para modificar as instruções originais.
+A segunda tarefa verifica o contexto da conversa e retorna verdadeiro/falso para validar se a recuperação de uma Base de Conhecimento é realmente necessária.
+Quando evitada, isso reduzirá a latência da resposta.
 
-Para passar uma resposta estruturada, o estado Pass é usado para formatar a saída JSON. Esta técnica pode ser usada para manter as Tarefas flexíveis e usar o estado de passagem para filtrar/formatar a saída para manter o contrato da API.
+Se o resultado for verdadeiro, a Base de Conhecimento é invocada usando a pergunta do usuário + as palavras-chave adicionadas, caso contrário, nenhum conteúdo será adicionado. Observe que há um manipulador de erro se a tarefa de Recuperação falhar. 
 
-Cada Tarefa que realiza a invocação ao Bedrock tem um prompt específico, e você pode tentar modificar/adicionar/excluir para experimentar a solução. Neste exemplo, esses prompts não são usados diretamente para formatar a resposta final do usuário, e sim para determinar definir o comportamento da arquitetura RAG. O último passo de engenharia de prompt é tratado pelo lambda para executar a resposta em stream, e é possível transformar a instrução original através do parâmetro prompt_chain_data que pode ser inserido na máquina de estados do Step Functions.
+Ele adiciona o conteúdo do erro ao contex_output e usa o prompt_chain_data para modificar as instruções originais.
+
+Para passar uma resposta estruturada, o estado Pass é usado para formatar a saída JSON. 
+Esta técnica pode ser usada para manter as Tarefas flexíveis e usar o estado de passagem para filtrar/formatar a saída para manter o contrato da API.
+
+Cada Tarefa que realiza a invocação ao Bedrock tem um prompt específico, e você pode tentar modificar/adicionar/excluir para experimentar a solução.
+
+Neste exemplo, esses prompts não são usados diretamente para formatar a resposta final do usuário, e sim para determinar definir o comportamento da arquitetura RAG. 
+
+O último passo de engenharia de prompt é tratado pelo lambda para executar a resposta em stream, e é possível transformar a instrução original através do parâmetro prompt_chain_data que pode ser inserido na máquina de estados do Step Functions.
 
 Para mais detalhes da implementação acesse o repositório da solução.
 
@@ -182,7 +199,9 @@ Bash
 
 Conclusão
 
-Utilizando respostas via stream e a arquitetura serverless do AWS Lambda, juntamente com a flexibilidade dos workflows do Step Functions, esta abordagem visa resolver eficazmente os desafios de latência e personalização. A implementação proposta busca oferecer uma experiência de usuário aprimorada, com respostas rápidas e contextualizadas.
+Utilizando respostas via stream e a arquitetura serverless do AWS Lambda, juntamente com a flexibilidade dos workflows do Step Functions, esta abordagem visa resolver eficazmente os desafios de latência e personalização.
+
+A implementação proposta busca oferecer uma experiência de usuário aprimorada, com respostas rápidas e contextualizadas.
 
 ----------------teoria -----------------
 
