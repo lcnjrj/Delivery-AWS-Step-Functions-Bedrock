@@ -24,11 +24,18 @@ Você usa um aplicativo ou site para fazer seu pedido.
 O sistema registra seu pedido e guarda todas as informações importantes, o que você comprou, o endereço de entrega e o método de pagamento.
 
 O sistema entra em ação, organizando cada etapa da entrega.
+
 Usa o AWS Step Functions para definir os passos do processo:
-- Confirmar o pagamento.
-- Encontrar o entregador mais próximo.
-- Preparar o pedido para a entrega.
-- Notificar você sobre o status da entrega.
+Recebe o pedido do cliente.
+Verifica a disponibilidade do produto.
+Calcula o custo de entrega baseado na localização.
+Confirma o pedido com base na disponibilidade do produto.
+Se disponível, prossegue para o processamento de pagamento.
+Se indisponível, notifica o cliente da indisponibilidade.
+Processa o pagamento do cliente.
+Notifica o cliente sobre a confirmação do pedido.
+Acompanha o status da entrega até a conclusão.
+
 Cada passo é realizado por um "robô" chamado AWS Lambda, que executa tarefas específicas, como enviar mensagens ou atualizar o status do pedido.
 
 2. Acompanhamento em tempo real:
@@ -45,7 +52,7 @@ Pode conversar com ele para tirar dúvidas sobre o seu pedido, como:
 "Posso mudar o endereço de entrega?"
 O chatbot te responde de forma rápida e amigável, como se você estivesse falando com uma pessoa real.
 
-5. Escalabilidade:
+4. Escalabilidade:
 
 O sistema se adapta à demanda.
 Se você fizer muitos pedidos ao mesmo tempo, ele aumenta automaticamente a capacidade.
