@@ -73,30 +73,45 @@ Se você fizer poucos pedidos, ele diminui a capacidade para economizar recursos
 
 Figura 1. Arquitetura da solução, tenda a Lambda sendo exposta ao cliente via Lambda URL, invocando uma máquina de estado do Step Functions, para depois invocar o modelo via Bedrock com response stream.
 
+
 Como Funciona?
 O exemplo usa Lambda para operar uma máquina de estados construída com o Workflow Express Síncrono do AWS Step Functions, projetada especificamente para orquestrar múltiplas solicitações às APIs do Amazon Bedrock.
 
 Inicialmente, a Lambda invoca a máquina de estados, uma implementação de RAG, e a utiliza como entrada para acionar a API InvokeModelWithResponseStream do Bedrock, resultando em uma resposta transmitida em stream ao solicitante.
+
 Para essa implementação, utilizamos o AWS Lambda Web Adapter em conjunto com o FastAPI, permitindo que a função Lambda seja acessada por meio de uma URL do Lambda configurada no modo de Response Stream. 
+
 Graças à resposta em stream, o TTFB (Time to First Byte) é reduzido, melhorando significativamente a experiência do usuário do assistente GenAI e se adequando aos cenários de serviços voltados para os clientes finais via web.
 
 A arquitetura de engenharia de prompt desta solução emprega a técnica de Prompt Chaining, onde as funções Lambda recebem instruções através do parâmetro system, guiando o comportamento do modelo desde a primeira invocação.
-Este parâmetro contém as instruções para o assistente interagir com o usuário, incluindo especificações sobre o papel, o tom e diretrizes gerais para a interação. Inicialmente, o primeiro prompt é crucial para estabelecer técnicas complexas como Role Playing e Few-Shot Prompting.
+
+Este parâmetro contém as instruções para o assistente interagir com o usuário, incluindo especificações sobre o papel, o tom e diretrizes gerais para a interação. 
+
+Inicialmente, o primeiro prompt é crucial para estabelecer técnicas complexas como Role Playing e Few-Shot Prompting.
 
 A Lambda também atua como a última subtarefa do encadeamento de prompts, pronta para utilizar modelos poderosos como os da série Claude.
+
 Essa configuração permite a implementação da API InvokeModelWithResponseStream, que, embora envolva modelos com maior tempo de resposta, aproveita o TTFB para oferecer uma resposta com menor latência, melhorando significativamente a responsividade durante as interações com os usuários.
 
 Aqui estão alguns cenários onde este padrão pode ser usado:
 
 RAG: Use Step Functions para invocar Bedrock, enriquecendo a entrada do usuário com palavras-chave relevantes ao contexto da conversa e, em seguida, realizar uma busca semântica através das bases de conhecimento do Amazon Bedrock. 
+
 As tarefas de adicionar palavras-chave e invocar bases de conhecimento, sendo de baixa latência, permitem que a resposta ao usuário seja gerada via stream, melhorando a experiência.
 
 Router: Uma máquina de estado do Step Functions pode atuar como um roteador para combinar cenários determinísticos e não determinísticos, como identificar um potencial churn de cliente e iniciar um workflow de retenção.
 
 Testes A/B: Utilize testes A/B nas Step Functions para uma implementação rápida e low-code, testando diferentes experimentos, fazendo ajustes e selecionando o melhor para seu negócio. 
+
 Enquanto se concentra nas regras de negócio, a função Lambda serve como uma abstração de interface, eliminando a necessidade de alterar o código ou o contrato da API para cada experimento.
 
-Chamadas de API: A entrada do usuário pode solicitar ao LLM que gere dados em formatos como JSON, XML ou uma consulta SQL baseada em uma estrutura de tabela. Esses dados podem então ser usados pelas Step Functions para realizar tarefas que envolvem chamar APIs e executar consultas SQL em bancos de dados. Além disso, a função Lambda pode utilizar a saída das Step Functions para fornecer respostas em stream e explicar os dados gerados.
+Chamadas de API: A entrada do usuário pode solicitar ao LLM que gere dados em formatos como JSON, XML ou uma consulta SQL baseada em uma estrutura de tabela.
+
+Esses dados podem então ser usados pelas Step Functions para realizar tarefas que envolvem chamar APIs e executar consultas SQL em bancos de dados. 
+
+Além disso, a função Lambda pode utilizar a saída das Step Functions para fornecer respostas em stream e explicar os dados gerados.
+
+----------------------------------------------------------------------------------------------
 
 Passo a Passo
 Pré-requisitos
@@ -153,12 +168,15 @@ Via Python
 cd serverless-genai-assistant/examples/serverless-assistant-rag/tests
 pip install requests
 python test_stream_python_requests.py --lambda-url <lambda-url>
+
 Bash
+
 Com Streamlit
 cd serverless-genai-assistant/examples/serverless-assistant-rag/tests
 pip install requests
 pip install streamlit
 streamlit run st_serverless_assistant.py -- --lambda-url <lambda-url>
+
 Bash
 Detalhes da Implementação
 
@@ -173,7 +191,8 @@ A primeira tarefa aprimora a pergunta do usuário adicionando palavras-chave par
 A segunda tarefa verifica o contexto da conversa e retorna verdadeiro/falso para validar se a recuperação de uma Base de Conhecimento é realmente necessária.
 Quando evitada, isso reduzirá a latência da resposta.
 
-Se o resultado for verdadeiro, a Base de Conhecimento é invocada usando a pergunta do usuário + as palavras-chave adicionadas, caso contrário, nenhum conteúdo será adicionado. Observe que há um manipulador de erro se a tarefa de Recuperação falhar. 
+Se o resultado for verdadeiro, a Base de Conhecimento é invocada usando a pergunta do usuário + as palavras-chave adicionadas, caso contrário, nenhum conteúdo será adicionado. 
+Observe que há um manipulador de erro se a tarefa de Recuperação falhar. 
 
 Ele adiciona o conteúdo do erro ao contex_output e usa o prompt_chain_data para modificar as instruções originais.
 
@@ -497,3 +516,141 @@ Se preferir definir o fluxo de trabalho usando ASL diretamente, o código JSON e
 Substitua `REGION` e `ACCOUNT_ID` pelos valores corretos para suas funções Lambda.
 
 Este fluxo de trabalho e a definição ASL criarão uma máquina de estado que gerencia o processo de delivery de forma automática e eficiente usando AWS Step Functions e Lambda.
+
+Para integrar o AWS Bedrock com o AWS Step Functions e configurar um fluxo de trabalho que inclua a verificação de disponibilidade de modelos e permissões, você precisará seguir alguns passos para configurar o ambiente e criar um fluxo de trabalho eficiente. Vou descrever o processo em detalhes para você.
+
+### Passo 1: Entender o AWS Bedrock
+
+O AWS Bedrock é um serviço da AWS que fornece acesso a modelos de linguagem pré-treinados para criação de soluções de inteligência artificial. Para usar o Bedrock com Step Functions, você precisará:
+
+1. **Verificar a Disponibilidade do Modelo**: Verificar se o modelo desejado está disponível na sua região.
+2. **Solicitar o Modelo**: Configurar e solicitar o modelo para uso.
+3. **Configurar Permissões**: Garantir que seu perfil de usuário e o serviço AWS tenha as permissões adequadas para acessar e usar o modelo.
+
+### Passo 2: Verificar a Disponibilidade do Modelo
+
+1. **Acesse o AWS Bedrock**:
+   - No Console de Gerenciamento da AWS, vá para o serviço AWS Bedrock.
+   - Verifique se o modelo desejado está listado e disponível na sua região.
+
+2. **Confirmar Disponibilidade na Região**:
+   - Se o modelo não estiver disponível na região padrão, você pode precisar mudar para uma região onde o modelo está disponível ou solicitar acesso.
+
+### Passo 3: Configurar o Modelo
+
+1. **Solicitar e Configurar o Modelo**:
+   - No console do AWS Bedrock, solicite o modelo desejado (por exemplo, "Haiku").
+   - Configure o modelo de acordo com suas necessidades (e.g., ajustar parâmetros de execução).
+
+2. **Permissões de Modelo**:
+   - Certifique-se de que você tem permissões para acessar e usar o modelo. Pode ser necessário configurar permissões adicionais no IAM (Identity and Access Management) para acessar o modelo de forma programática.
+
+### Passo 4: Configurar Permissões para o Usuário e Serviço
+
+1. **Permissões do Perfil do Usuário**:
+   - No Console de IAM, crie ou edite um perfil de usuário para garantir que ele tenha permissões adequadas para interagir com o AWS Bedrock e os modelos.
+   - A política de permissões pode incluir permissões para acessar o serviço Bedrock e o modelo específico.
+
+2. **Permissões do Serviço AWS**:
+   - Certifique-se de que o serviço Step Functions tenha permissões para invocar o Bedrock e acessar o modelo.
+   - Atualize a política de execução do Step Functions para incluir permissões para invocar as funções Lambda e o serviço Bedrock.
+
+3. **Permissões do Modelo "Haiku"**:
+   - Configure permissões específicas para acessar e usar o modelo "Haiku" no AWS Bedrock.
+
+### Passo 5: Integrar AWS Step Functions com AWS Bedrock
+
+1. **Criar Funções Lambda para Interagir com o Bedrock**:
+   - Desenvolva funções Lambda que invocarão o modelo Bedrock para processamento de dados.
+   - Exemplo de código Lambda em Python para chamar um modelo do Bedrock:
+
+     ```python
+     import boto3
+
+     def lambda_handler(event, context):
+         client = boto3.client('bedrock')
+         response = client.invoke_model(
+             ModelId='model-haiku-id',  # Substitua com o ID do seu modelo
+             Body=event['body'],
+         )
+         return {
+             'statusCode': 200,
+             'body': response['Body']
+         }
+     ```
+
+2. **Configurar o Fluxo de Trabalho no Step Functions**:
+   - No Workflow Studio, adicione uma nova **"Task"** para invocar a função Lambda que interage com o Bedrock.
+   - Configure a Task para chamar a função Lambda que usa o modelo "Haiku".
+
+3. **Exemplo de Definição ASL com Bedrock**:
+
+   ```json
+   {
+     "Comment": "Assistente de Delivery com Bedrock",
+     "StartAt": "ReceiveOrder",
+     "States": {
+       "ReceiveOrder": {
+         "Type": "Task",
+         "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:ReceiveOrderFunction",
+         "Next": "CheckAvailability"
+       },
+       "CheckAvailability": {
+         "Type": "Task",
+         "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:CheckAvailabilityFunction",
+         "Next": "IsAvailable"
+       },
+       "IsAvailable": {
+         "Type": "Choice",
+         "Choices": [
+           {
+             "Variable": "$.availability",
+             "BooleanEquals": true,
+             "Next": "CalculateDeliveryCost"
+           }
+         ],
+         "Default": "NotifyCustomer"
+       },
+       "CalculateDeliveryCost": {
+         "Type": "Task",
+         "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:CalculateDeliveryCostFunction",
+         "Next": "ConfirmOrder"
+       },
+       "ConfirmOrder": {
+         "Type": "Task",
+         "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:ConfirmOrderFunction",
+         "Next": "ProcessPayment"
+       },
+       "ProcessPayment": {
+         "Type": "Task",
+         "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:ProcessPaymentFunction",
+         "Next": "NotifyCustomer"
+       },
+       "NotifyCustomer": {
+         "Type": "Task",
+         "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:NotifyCustomerFunction",
+         "Next": "TrackDelivery"
+       },
+       "TrackDelivery": {
+         "Type": "Task",
+         "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:TrackDeliveryFunction",
+         "End": true
+       }
+     }
+   }
+   ```
+
+### Passo 6: Testar e Validar
+
+1. **Teste o Fluxo de Trabalho**:
+   - No Console de Step Functions, inicie uma nova execução do fluxo de trabalho e observe se a função Lambda interage corretamente com o AWS Bedrock.
+
+2. **Monitorar Logs e Resultados**:
+   - Use o console do AWS Lambda para monitorar logs e depurar qualquer problema com a integração.
+
+### Considerações Finais
+
+- **Verifique Configurações Regionais**: Assegure-se de que os serviços e recursos estejam disponíveis na região escolhida.
+- **Gerencie Permissões com Cuidado**: Garanta que as permissões estejam configuradas corretamente para evitar problemas de acesso.
+
+Com esses passos, você configurará um fluxo de trabalho usando AWS Step Functions e AWS Bedrock, garantindo que as permissões e a configuração do modelo estejam adequadas para seu ambiente.
