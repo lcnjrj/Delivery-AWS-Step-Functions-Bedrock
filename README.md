@@ -112,27 +112,36 @@ Bash
 Para o passo a passo de deployment, defina as seguintes opções:
 
 Stack Name []: # Escolha um nome para o stack
+
 AWS Region [us-east-1]: # Selecione uma Região que suporte o Amazon Bedrock e os outros serviços AWS
 Parameter KnowledgeBaseId []: # Insira o ID da KB https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-manage.html#kb-
+
 # Mostra as mudanças nos recursos a serem implantados e requer um 'Y' para iniciar a implantação
+
 Confirm changes before deploy [y/N]:
+
 # O SAM precisa de permissão para criar funções para conectar aos recursos em seu template
 Allow SAM CLI IAM role creation [Y/n]:
+
 # Preserva o estado dos recursos previamente provisionados quando uma operação falha
 Disable rollback [y/N]:
 FastAPIFunction Function Url has no authentication. Is this okay? [y/N]: y
 Save arguments to configuration file [Y/n]:
 SAM configuration file [samconfig.toml]:
 SAM configuration environment [default]:
+
 Bash
 Copie o valor de TheFastAPIFunctionUrl, é a URL para invocar o Lambda.
 
 Execução
 Via Terminal
+
 cd serverless-genai-assistant/examples/serverless-assistant-rag/tests
 curl --no-buffer -H "Content-Type: application/json" -X POST -d @test.json <lambda-url>
+
 Bash
 Via Python
+
 cd serverless-genai-assistant/examples/serverless-assistant-rag/tests
 pip install requests
 python test_stream_python_requests.py --lambda-url <lambda-url>
@@ -150,10 +159,14 @@ Figura 2. Implementação da RAG com maquina de estado.
 Usamos a máquina de estados em examples/serverless_assistant_rag para exemplificar como o fluxo de trabalho funciona, ela implementa uma arquitetura RAG que pode ser usada com modelos Claude que utilizam a API de Mensagens. Você também pode combinar com outros modelos que usam a API de Completamento, tratando o payload usando ASL:
 
 Recebe os dados de entrada do lambda e os paraleliza para duas tarefas da API Bedrock.
+
 A primeira tarefa aprimora a pergunta do usuário adicionando palavras-chave para aumentar a busca semântica.
+
 A segunda tarefa verifica o contexto da conversa e retorna verdadeiro/falso para validar se a recuperação de uma Base de Conhecimento é realmente necessária. Quando evitada, isso reduzirá a latência da resposta.
 Se o resultado for verdadeiro, a Base de Conhecimento é invocada usando a pergunta do usuário + as palavras-chave adicionadas, caso contrário, nenhum conteúdo será adicionado. Observe que há um manipulador de erro se a tarefa de Recuperação falhar. Ele adiciona o conteúdo do erro ao contex_output e usa o prompt_chain_data para modificar as instruções originais.
+
 Para passar uma resposta estruturada, o estado Pass é usado para formatar a saída JSON. Esta técnica pode ser usada para manter as Tarefas flexíveis e usar o estado de passagem para filtrar/formatar a saída para manter o contrato da API.
+
 Cada Tarefa que realiza a invocação ao Bedrock tem um prompt específico, e você pode tentar modificar/adicionar/excluir para experimentar a solução. Neste exemplo, esses prompts não são usados diretamente para formatar a resposta final do usuário, e sim para determinar definir o comportamento da arquitetura RAG. O último passo de engenharia de prompt é tratado pelo lambda para executar a resposta em stream, e é possível transformar a instrução original através do parâmetro prompt_chain_data que pode ser inserido na máquina de estados do Step Functions.
 
 Para mais detalhes da implementação acesse o repositório da solução.
@@ -162,16 +175,17 @@ Limpeza
 Para excluir a infraestrutura criada, em um terminal execute:
 
 cd serverless-genai-assistant/examples/serverless-assistant-rag
+
 sam delete
+
 Bash
+
 Conclusão
-Ao explorar o potencial da Inteligência Artificial Generativa para o atendimento ao cliente, fica claro que integrar tecnologias como AWS Lambda, AWS Step Functions e Amazon Bedrock pode melhorar a eficiência e a personalização das soluções. Esta solução de assistente virtual, descrita neste post, facilita a implementação de técnicas avançadas de engenharia de prompt e permite a experimentação rápida com modelos de linguagem de grande escala.
 
 Utilizando respostas via stream e a arquitetura serverless do AWS Lambda, juntamente com a flexibilidade dos workflows do Step Functions, esta abordagem visa resolver eficazmente os desafios de latência e personalização. A implementação proposta busca oferecer uma experiência de usuário aprimorada, com respostas rápidas e contextualizadas.
 
-Esta solução serve como um ponto de partida, a partir do qual podemos desenvolver muitas outras abordagens semelhantes, aproveitando as melhores práticas aqui apresentadas. Encorajamos os desenvolvedores a explorar e adaptar esta metodologia para aprimorar não apenas a eficiência operacional, mas também para oferecer um atendimento ao cliente mais eficaz. A experimentação e adaptação contínua são fundamentais para manter a relevância e competitividade no mercado atual.
-
 ----------------teoria -----------------
+
 Criar uma máquina de estado a partir de um fluxo em branco para gerenciar um processo de entrega.
 
 ### Passo 1: Configurar AWS Lambda
@@ -296,4 +310,171 @@ Criar uma máquina de estado a partir de um fluxo em branco para gerenciar um pr
 Nas invocações ao Bedrock, definidas nas tarefas do Step Function, cada tarefa que realiza a invocação ao Bedrock pode ter seu próprio prompt. 
 Os prompts devem ser projetados de maneira concisa e direta nas tarefas das Step Functions, com foco na resolução de problemas específicos.
 
+Para criar um Assistente de Delivery usando o AWS Step Functions Workflow Studio e a Amazon States Language (ASL)
 
+O Workflow Studio é uma interface visual para criar e editar fluxos de trabalho com o AWS Step Functions, enquanto o ASL é a linguagem JSON usada para definir os fluxos de trabalho.
+
+### Passo 1: Criar Funções Lambda
+
+Antes de começar com o Workflow Studio, você deve ter as funções Lambda configuradas.
+Aqui está um lembrete rápido para criar essas funções:
+
+1. **Crie uma Função Lambda para Cada Etapa do Processo**:
+   - `ReceiveOrderFunction`
+   - `CheckAvailabilityFunction`
+   - `CalculateDeliveryCostFunction`
+   - `ConfirmOrderFunction`
+   - `ProcessPaymentFunction`
+   - `NotifyCustomerFunction`
+   - `TrackDeliveryFunction`
+
+### Passo 2: Acessar o AWS Step Functions Workflow Studio
+
+1. **Acesse o AWS Step Functions**:
+   - No Console de Gerenciamento da AWS, vá para o serviço **AWS Step Functions**.
+
+2. **Inicie o Workflow Studio**:
+   - Clique em **"Create state machine"**.
+   - Selecione **"Workflow Studio"** para usar a interface visual.
+
+### Passo 3: Criar o Fluxo de Trabalho no Workflow Studio
+
+1. **Iniciar um Novo Fluxo de Trabalho**:
+   - Clique em **"Create new workflow"**.
+
+2. **Adicionar os Passos**:
+   - **Receber o Pedido**:
+     - Arraste e solte um bloco de **"Task"** na tela.
+     - Configure a **"Task"** para usar a função Lambda `ReceiveOrderFunction`.
+     - Nomeie o bloco como "ReceiveOrder".
+     - 
+   - **Verificar Disponibilidade**:
+     - Arraste outro bloco de **"Task"** e conecte-o ao bloco "ReceiveOrder".
+     - Configure este bloco para usar a função Lambda `CheckAvailabilityFunction`.
+     - Nomeie o bloco como "CheckAvailability".
+     - 
+   - **Condições de Disponibilidade**:
+     - Arraste um bloco de **"Choice"** e conecte-o ao bloco "CheckAvailability".
+     - Configure as condições no bloco **"Choice"**:
+       - Se `$.availability` for verdadeiro, prossiga para o bloco **"CalculateDeliveryCost"**.
+       - Caso contrário, prossiga para o bloco **"NotifyCustomer"**.
+       - 
+   - **Calcular Custo de Entrega**:
+     - Adicione um bloco de **"Task"** e conecte-o ao bloco **"Choice"** para o caso positivo.
+     - Configure para usar a função Lambda `CalculateDeliveryCostFunction`.
+     - Nomeie o bloco como "CalculateDeliveryCost".
+     - 
+   - **Confirmar Pedido**:
+     - Arraste outro bloco de **"Task"** e conecte-o ao bloco "CalculateDeliveryCost".
+     - Configure para usar a função Lambda `ConfirmOrderFunction`.
+     - Nomeie o bloco como "ConfirmOrder".
+     - 
+   - **Processar Pagamento**:
+     - Arraste um bloco de **"Task"** e conecte-o ao bloco "ConfirmOrder".
+     - Configure para usar a função Lambda `ProcessPaymentFunction`.
+     - Nomeie o bloco como "ProcessPayment".
+     - 
+   - **Notificar Cliente**:
+     - Adicione um bloco de **"Task"** e conecte-o ao bloco "ProcessPayment".
+     - Configure para usar a função Lambda `NotifyCustomerFunction`.
+     - Nomeie o bloco como "NotifyCustomer".
+     - 
+   - **Acompanhar Entrega**:
+     - Adicione um bloco de **"Task"** e conecte-o ao bloco "NotifyCustomer".
+     - Configure para usar a função Lambda `TrackDeliveryFunction`.
+     - Nomeie o bloco como "TrackDelivery".
+
+3. **Configurar Transições**:
+   - Certifique-se de que todos os blocos estão conectados corretamente de acordo com o fluxo do processo.
+
+4. **Definir o Estado Final**:
+   - No bloco "TrackDelivery", defina-o como o **"End"** do fluxo de trabalho.
+
+### Passo 4: Definir e Configurar a Máquina de Estado
+
+1. **Salve e Publique**:
+   - Clique em **"Save"** para salvar o seu fluxo de trabalho.
+   - Clique em **"Publish"** para disponibilizar o fluxo de trabalho.
+
+2. **Verificar e Testar**:
+   - No console do AWS Step Functions, vá para a nova máquina de estado e inicie uma execução para testar o fluxo de trabalho.
+   - 
+   - Monitore a execução para garantir que todas as funções Lambda são chamadas corretamente e que o fluxo segue conforme esperado.
+
+### Passo 5: Configurar Permissões
+
+1. **Permissões**:
+   - Certifique-se de que as funções Lambda têm permissões para serem invocadas pela Step Functions.
+   - 
+   - Verifique a política de execução da máquina de estado para garantir que ela tenha permissões para invocar as funções Lambda.
+
+### Passo 6: Monitorar e Depurar
+
+1. **Monitorar Executions**:
+   - Utilize o Console do Step Functions para monitorar o progresso das execuções e depurar qualquer problema que possa surgir.
+
+2. **Verificar Logs**:
+   - Use o Console do AWS Lambda para acessar os logs e verificar o funcionamento das funções Lambda.
+
+### Exemplo de Definição ASL
+
+Se preferir definir o fluxo de trabalho usando ASL diretamente, o código JSON equivalente ao Workflow Studio seria algo assim:
+
+```json
+{
+  "Comment": "Assistente de Delivery",
+  "StartAt": "ReceiveOrder",
+  "States": {
+    "ReceiveOrder": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:ReceiveOrderFunction",
+      "Next": "CheckAvailability"
+    },
+    "CheckAvailability": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:CheckAvailabilityFunction",
+      "Next": "IsAvailable"
+    },
+    "IsAvailable": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.availability",
+          "BooleanEquals": true,
+          "Next": "CalculateDeliveryCost"
+        }
+      ],
+      "Default": "NotifyCustomer"
+    },
+    "CalculateDeliveryCost": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:CalculateDeliveryCostFunction",
+      "Next": "ConfirmOrder"
+    },
+    "ConfirmOrder": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:ConfirmOrderFunction",
+      "Next": "ProcessPayment"
+    },
+    "ProcessPayment": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:ProcessPaymentFunction",
+      "Next": "NotifyCustomer"
+    },
+    "NotifyCustomer": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:NotifyCustomerFunction",
+      "Next": "TrackDelivery"
+    },
+    "TrackDelivery": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:TrackDeliveryFunction",
+      "End": true
+    }
+  }
+}
+```
+
+Substitua `REGION` e `ACCOUNT_ID` pelos valores corretos para suas funções Lambda.
+
+Este fluxo de trabalho e a definição ASL criarão uma máquina de estado que gerencia o processo de delivery de forma automática e eficiente usando AWS Step Functions e Lambda.
