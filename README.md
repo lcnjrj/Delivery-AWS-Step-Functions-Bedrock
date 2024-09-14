@@ -231,6 +231,7 @@ sam delete
 
 Bash
 
+
 Conclusão
 
 Utilizando respostas via stream e a arquitetura serverless do AWS Lambda, juntamente com a flexibilidade dos workflows do Step Functions, esta abordagem visa resolver eficazmente os desafios de latência e personalização.
