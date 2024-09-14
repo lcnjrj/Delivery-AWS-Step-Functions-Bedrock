@@ -15,3 +15,38 @@ AWS Bedrock é perfeito para criar um chatbot com inteligência artificial que p
 O AWS SNS para enviar notificações sobre o status dos pedidos é uma ótima maneira de manter os clientes informados sobre o andamento de suas entregas.
 E a arquitetura serverless garante que o sistema seja escalável.
 Com essa combinação de serviços da AWS, terá um sistema de entrega completo, eficiente e escalável.
+
+Como funciona um assistente virtual de delivery:
+
+1. Fazendo seu pedido:
+
+Você usa um aplicativo ou site para fazer seu pedido.
+O sistema registra seu pedido e guarda todas as informações importantes, o que você comprou, o endereço de entrega e o método de pagamento.
+
+O sistema entra em ação, organizando cada etapa da entrega.
+Usa o AWS Step Functions para definir os passos do processo:
+- Confirmar o pagamento.
+- Encontrar o entregador mais próximo.
+- Preparar o pedido para a entrega.
+- Notificar você sobre o status da entrega.
+Cada passo é realizado por um "robô" chamado AWS Lambda, que executa tarefas específicas, como enviar mensagens ou atualizar o status do pedido.
+
+2. Acompanhamento em tempo real:
+
+Pode acompanhar o status do seu pedido em tempo real, através de um aplicativo ou site.
+O sistema envia notificações por SMS ou e-mail para te manter atualizado sobre cada etapa da entrega.
+
+3. AWS Bedrock
+
+O AWS Bedrock, é um chatbot com inteligência artificial.
+Pode conversar com ele para tirar dúvidas sobre o seu pedido, como:
+"Onde está meu pedido?"
+"Quando ele vai chegar?"
+"Posso mudar o endereço de entrega?"
+O chatbot te responde de forma rápida e amigável, como se você estivesse falando com uma pessoa real.
+
+5. Escalabilidade:
+
+O sistema se adapta à demanda.
+Se você fizer muitos pedidos ao mesmo tempo, ele aumenta automaticamente a capacidade.
+Se você fizer poucos pedidos, ele diminui a capacidade para economizar recursos.
