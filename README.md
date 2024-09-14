@@ -26,14 +26,23 @@ O sistema registra seu pedido e guarda todas as informações importantes, o que
 O sistema entra em ação, organizando cada etapa da entrega.
 
 Usa o AWS Step Functions para definir os passos do processo:
+
 Recebe o pedido do cliente.
+
 Verifica a disponibilidade do produto.
+
 Calcula o custo de entrega baseado na localização.
+
 Confirma o pedido com base na disponibilidade do produto.
+
 Se disponível, prossegue para o processamento de pagamento.
+
 Se indisponível, notifica o cliente da indisponibilidade.
+
 Processa o pagamento do cliente.
+
 Notifica o cliente sobre a confirmação do pedido.
+
 Acompanha o status da entrega até a conclusão.
 
 Cada passo é realizado por um "robô" chamado AWS Lambda, que executa tarefas específicas, como enviar mensagens ou atualizar o status do pedido.
@@ -162,9 +171,129 @@ Utilizando respostas via stream e a arquitetura serverless do AWS Lambda, juntam
 
 Esta solução serve como um ponto de partida, a partir do qual podemos desenvolver muitas outras abordagens semelhantes, aproveitando as melhores práticas aqui apresentadas. Encorajamos os desenvolvedores a explorar e adaptar esta metodologia para aprimorar não apenas a eficiência operacional, mas também para oferecer um atendimento ao cliente mais eficaz. A experimentação e adaptação contínua são fundamentais para manter a relevância e competitividade no mercado atual.
 
+----------------teoria -----------------
+Criar uma máquina de estado a partir de um fluxo em branco para gerenciar um processo de entrega.
 
+### Passo 1: Configurar AWS Lambda
 
-Nas invocações ao Bedrock, definidas nas tarefas do Step Function, cada tarefa que realiza a invocação ao Bedrock pode ter seu próprio prompt. Os prompts devem ser projetados de maneira concisa e direta nas tarefas das Step Functions, com foco na resolução de problemas específicos. Isso incentiva a experimentação com diferentes modelos para otimizar os resultados.
+1. **Crie uma conta na AWS**: Se ainda não tiver uma conta na AWS, acesse [aws.amazon.com](https://aws.amazon.com/) e siga as instruções para criar uma.
 
+2. **Acesse o AWS Lambda**: No Console de Gerenciamento da AWS, vá para o serviço AWS Lambda.
+
+3. **Crie uma Função Lambda**:
+   - Clique em **"Create function"**.
+   - Escolha **"Author from scratch"**.
+   - Nomeie a função, por exemplo, `ReceiveOrderFunction`.
+   - Escolha um runtime (Python é uma escolha comum para iniciantes).
+   - Clique em **"Create function"**.
+
+4. **Desenvolva a Função Lambda**:
+   - No editor de código, insira o código que processa o pedido. 
+     ```python
+     import json
+
+     def lambda_handler(event, context):
+         # Simula a recepção de um pedido
+         return {
+             'statusCode': 200,
+             'body': json.dumps('Pedido recebido')
+         }
+     ```
+
+5. **Repita o processo** para criar funções Lambda para os seguintes passos:
+   - **`CheckAvailabilityFunction`**: Verifica a disponibilidade do produto.
+   - **`CalculateDeliveryCostFunction`**: Calcula o custo de entrega.
+   - **`ConfirmOrderFunction`**: Confirma o pedido.
+   - **`NotifyCustomerFunction`**: Notifica o cliente.
+   - **`ProcessPaymentFunction`**: Processa o pagamento.
+   - **`TrackDeliveryFunction`**: Acompanha o status da entrega.
+
+### Passo 2: Criar a Máquina de Estado com AWS Step Functions
+
+1. **Acesse o AWS Step Functions**: No Console de Gerenciamento da AWS, vá para o serviço AWS Step Functions.
+
+2. **Crie uma Nova Máquina de Estado**:
+   - Clique em **"Create state machine"**.
+   - Selecione **"Write your workflow in code"**.
+   - Escolha um nome para a sua máquina de estado, por exemplo, `DeliveryWorkflow`.
+
+3. **Defina o Fluxo de Trabalho**:
+   - No editor de código, definina o fluxo de trabalho usando a linguagem de definição de estado (Amazon States Language). Exemplo básico do fluxo de trabalho descrito:
+     ```json
+     {
+       "Comment": "Assistente de Delivery",
+       "StartAt": "ReceiveOrder",
+       "States": {
+         "ReceiveOrder": {
+           "Type": "Task",
+           "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:ReceiveOrderFunction",
+           "Next": "CheckAvailability"
+         },
+         "CheckAvailability": {
+           "Type": "Task",
+           "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:CheckAvailabilityFunction",
+           "Next": "IsAvailable"
+         },
+         "IsAvailable": {
+           "Type": "Choice",
+           "Choices": [
+             {
+               "Variable": "$.availability",
+               "BooleanEquals": true,
+               "Next": "CalculateDeliveryCost"
+             }
+           ],
+           "Default": "NotifyCustomer"
+         },
+         "CalculateDeliveryCost": {
+           "Type": "Task",
+           "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:CalculateDeliveryCostFunction",
+           "Next": "ConfirmOrder"
+         },
+         "ConfirmOrder": {
+           "Type": "Task",
+           "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:ConfirmOrderFunction",
+           "Next": "ProcessPayment"
+         },
+         "ProcessPayment": {
+           "Type": "Task",
+           "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:ProcessPaymentFunction",
+           "Next": "NotifyCustomer"
+         },
+         "NotifyCustomer": {
+           "Type": "Task",
+           "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:NotifyCustomerFunction",
+           "Next": "TrackDelivery"
+         },
+         "TrackDelivery": {
+           "Type": "Task",
+           "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:TrackDeliveryFunction",
+           "End": true
+         }
+       }
+     }
+     ```
+   - Substitua `REGION` e `ACCOUNT_ID` pelos valores apropriados para a sua conta AWS.
+
+4. **Configure Permissões**:
+   - As funções Lambda precisam de permissões para serem invocadas pela AWS Step Functions. Certifique-se de que a política de execução da Step Functions inclua permissões para invocar suas funções Lambda.
+
+5. **Crie e Execute o Fluxo de Trabalho**:
+   - Clique em **"Create state machine"**.
+   - Depois, inicie uma nova execução para testar o fluxo de trabalho e verificar se todas as funções Lambda estão sendo chamadas conforme esperado.
+
+### Passo 3: Testar e Monitorar
+
+1. **Teste o Fluxo de Trabalho**: Envie um pedido de teste para a sua máquina de estado e observe o progresso dos estados no console do Step Functions.
+
+2. **Monitore e Depure**: Utilize o console do AWS Lambda para verificar logs e depurar funções individuais. O console do Step Functions fornece visualizações úteis sobre o status de cada execução e onde podem ocorrer falhas.
+
+### Considerações Finais
+
+- **Segurança**: Garanta que as permissões e configurações de segurança estejam corretas para proteger suas funções Lambda e seus dados.
+- **Custos**: Fique atento aos custos associados ao uso do AWS Lambda e AWS Step Functions, especialmente se o volume de transações for alto.
+
+Nas invocações ao Bedrock, definidas nas tarefas do Step Function, cada tarefa que realiza a invocação ao Bedrock pode ter seu próprio prompt. 
+Os prompts devem ser projetados de maneira concisa e direta nas tarefas das Step Functions, com foco na resolução de problemas específicos.
 
 
