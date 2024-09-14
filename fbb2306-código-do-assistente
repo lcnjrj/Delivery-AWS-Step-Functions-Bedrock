@@ -1,0 +1,61 @@
+Segue abaixo o codigo para este assistenete de delivery usando o step functions da AWS
+Copiado do repositorio:
+https://github.com/fbb2306/assistente_de_delivery/blob/main/código_do_assistente
+Objetivo pesquisa
+
+{
+  "Comment": "Assistente de Delivery usando AWS Step Functions e Bedrock",
+  "StartAt": "ReceberPedido",
+  "States": {
+    "ReceberPedido": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:ReceberPedidoFunction",
+      "Next": "VerificarDisponibilidade"
+    },
+    "VerificarDisponibilidade": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:VerificarDisponibilidadeFunction",
+      "Next": "CalcularCustoEntrega"
+    },
+    "CalcularCustoEntrega": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:CalcularCustoEntregaFunction",
+      "Next": "ConfirmarPedido"
+    },
+    "ConfirmarPedido": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.disponibilidade",
+          "BooleanEquals": true,
+          "Next": "ProcessarPagamento"
+        },
+        {
+          "Variable": "$.disponibilidade",
+          "BooleanEquals": false,
+          "Next": "NotificarIndisponibilidade"
+        }
+      ]
+    },
+    "ProcessarPagamento": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:ProcessarPagamentoFunction",
+      "Next": "NotificarCliente"
+    },
+    "NotificarIndisponibilidade": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:NotificarIndisponibilidadeFunction",
+      "End": true
+    },
+    "NotificarCliente": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:NotificarClienteFunction",
+      "Next": "AcompanharEntrega"
+    },
+    "AcompanharEntrega": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:AcompanharEntregaFunction",
+      "End": true
+    }
+  }
+}
