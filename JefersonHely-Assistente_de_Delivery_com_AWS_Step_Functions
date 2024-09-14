@@ -1,0 +1,170 @@
+Resources:
+  DeliveryApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: "DeliveryApi"
+
+  OrdersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt DeliveryApi.RootResourceId
+      PathPart: "orders"
+      RestApiId: !Ref DeliveryApi
+
+  CreateOrderMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: "NONE"
+      HttpMethod: "POST"
+      ResourceId: !Ref OrdersResource
+      RestApiId: !Ref DeliveryApi
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS_PROXY"
+        Uri: 
+          Fn::Sub: 
+            - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
+            - { Region: !Ref "AWS::Region", FunctionArn: !GetAtt CreateOrderLambda.Arn }
+import json
+import boto3
+import uuid
+
+stepfunctions = boto3.client('stepfunctions')
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table('Orders')
+
+def lambda_handler(event, context):
+    # Gerar ID único para o pedido
+    order_id = str(uuid.uuid4())
+    
+    # Dados do pedido recebidos via API Gateway
+    order_data = json.loads(event['body'])
+    
+    # Armazenar o pedido no DynamoDB
+    table.put_item(
+        Item={
+            'OrderId': order_id,
+            'Status': 'PENDING',
+            'Items': order_data['items'],
+            'Customer': order_data['customer'],
+            'Timestamp': order_data['timestamp']
+        }
+    )
+    
+    # Iniciar o Step Functions
+    response = stepfunctions.start_execution(
+        stateMachineArn='arn:aws:states:us-east-1:123456789012:stateMachine:DeliveryStateMachine',
+        name=f"OrderProcessing-{order_id}",
+        input=json.dumps({
+            'order_id': order_id,
+            'customer': order_data['customer'],
+            'items': order_data['items']
+        })
+    )
+    
+    return {
+        'statusCode': 200,
+        'body': json.dumps({
+            'message': 'Order created successfully',
+            'order_id': order_id
+        })
+    }
+def update_order_status(order_id, status):
+    response = table.update_item(
+        Key={'OrderId': order_id},
+        UpdateExpression="set #status = :s",
+        ExpressionAttributeNames={'#status': 'Status'},
+        ExpressionAttributeValues={':s': status},
+        ReturnValues="UPDATED_NEW"
+    )
+    return response
+{
+  "Comment": "Processo de pedido de delivery",
+  "StartAt": "ValidarPedido",
+  "States": {
+    "ValidarPedido": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:123456789012:function:ValidateOrder",
+      "Next": "PrepararPedido"
+    },
+    "PrepararPedido": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:123456789012:function:PrepareOrder",
+      "Next": "IniciarEntrega"
+    },
+    "IniciarEntrega": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:123456789012:function:StartDelivery",
+      "Next": "AtualizarStatus"
+    },
+    "AtualizarStatus": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:123456789012:function:UpdateOrderStatus",
+      "End": true
+    }
+  }
+}
+import boto3
+
+bedrock = boto3.client('bedrock-runtime')
+
+def lambda_handler(event, context):
+    # Obtenha o texto da consulta
+    query = event['query']
+    
+    # Envie a consulta para o Bedrock
+    response = bedrock.invoke(
+        modelId='my-chatbot-model',
+        contentType='text/plain',
+        accept='application/json',
+        body=query
+    )
+    
+    # Processa a resposta
+    reply = response['body'].read().decode('utf-8')
+    
+    return {
+        'statusCode': 200,
+        'body': json.dumps({
+            'response': reply
+        })
+    }
+Resources:
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: "Orders"
+      AttributeDefinitions:
+        - AttributeName: "OrderId"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "OrderId"
+          KeyType: "HASH"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+sns = boto3.client('sns')
+
+def notify_user(order_id, message):
+    sns.publish(
+        TopicArn='arn:aws:sns:us-east-1:123456789012:OrderUpdates',
+        Message=message,
+        Subject=f'Atualização do Pedido {order_id}'
+    )
+Resources:
+  OrderProcessingAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Alarme para falhas na execução do processamento de pedidos"
+      MetricName: "Errors"
+      Namespace: "AWS/Lambda"
+      Statistic: "Sum"
+      Period: "300"
+      EvaluationPeriods: "1"
+      Threshold: "1"
+      ComparisonOperator: "GreaterThanOrEqualToThreshold"
+      AlarmActions:
+        - !Ref AlarmSNSTopic
+      Dimensions:
+        - Name: "FunctionName"
+          Value: "CreateOrderLambda"
