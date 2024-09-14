@@ -75,6 +75,7 @@ Figura 1. Arquitetura da solução, tenda a Lambda sendo exposta ao cliente via 
 
 
 Como Funciona?
+
 O exemplo usa Lambda para operar uma máquina de estados construída com o Workflow Express Síncrono do AWS Step Functions, projetada especificamente para orquestrar múltiplas solicitações às APIs do Amazon Bedrock.
 
 Inicialmente, a Lambda invoca a máquina de estados, uma implementação de RAG, e a utiliza como entrada para acionar a API InvokeModelWithResponseStream do Bedrock, resultando em uma resposta transmitida em stream ao solicitante.
@@ -119,34 +120,44 @@ Para rodar a solução você irá precisar:
 
 AWS Account
 AWS SAM
+
 Acesso aos modelos Anthropic Claude 3 (Sonnet e Haiku) e Meta Llama 3
 Criar uma Knowledge base for Rag de exemplo
+
 Se você não fornecer um ID de KnowledgeBaseId, você receberá uma resposta do LLM informando um erro do Bedrock.
+
 Para clonar o repositório, execute:
 
 git clone https://github.com/aws-samples/serverless-genai-assistant.git
+
 Bash
+
 Deployment
 Depois de clonar o repositório, execute os seguintes comandos do AWS SAM para construir e publicar a solução em sua conta.
 
 cd serverless-genai-assistant/examples/serverless-assistant-rag
 sam build sam deploy --guided
+
 Bash
 Para o passo a passo de deployment, defina as seguintes opções:
 
 Stack Name []: # Escolha um nome para o stack
 
 AWS Region [us-east-1]: # Selecione uma Região que suporte o Amazon Bedrock e os outros serviços AWS
-Parameter KnowledgeBaseId []: # Insira o ID da KB https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-manage.html#kb-
+Parameter KnowledgeBaseId []: # Insira o ID da KB 
+
+https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-manage.html#kb-
 
 # Mostra as mudanças nos recursos a serem implantados e requer um 'Y' para iniciar a implantação
 
 Confirm changes before deploy [y/N]:
 
 # O SAM precisa de permissão para criar funções para conectar aos recursos em seu template
+
 Allow SAM CLI IAM role creation [Y/n]:
 
 # Preserva o estado dos recursos previamente provisionados quando uma operação falha
+
 Disable rollback [y/N]:
 FastAPIFunction Function Url has no authentication. Is this okay? [y/N]: y
 Save arguments to configuration file [Y/n]:
@@ -182,7 +193,9 @@ Detalhes da Implementação
 
 Figura 2. Implementação da RAG com maquina de estado.
 
-Usamos a máquina de estados em examples/serverless_assistant_rag para exemplificar como o fluxo de trabalho funciona, ela implementa uma arquitetura RAG que pode ser usada com modelos Claude que utilizam a API de Mensagens. Você também pode combinar com outros modelos que usam a API de Completamento, tratando o payload usando ASL:
+Usamos a máquina de estados em examples/serverless_assistant_rag para exemplificar como o fluxo de trabalho funciona, ela implementa uma arquitetura RAG que pode ser usada com modelos Claude que utilizam a API de Mensagens. 
+
+Você também pode combinar com outros modelos que usam a API de Completamento, tratando o payload usando ASL:
 
 Recebe os dados de entrada do lambda e os paraleliza para duas tarefas da API Bedrock.
 
@@ -192,11 +205,13 @@ A segunda tarefa verifica o contexto da conversa e retorna verdadeiro/falso para
 Quando evitada, isso reduzirá a latência da resposta.
 
 Se o resultado for verdadeiro, a Base de Conhecimento é invocada usando a pergunta do usuário + as palavras-chave adicionadas, caso contrário, nenhum conteúdo será adicionado. 
+
 Observe que há um manipulador de erro se a tarefa de Recuperação falhar. 
 
 Ele adiciona o conteúdo do erro ao contex_output e usa o prompt_chain_data para modificar as instruções originais.
 
 Para passar uma resposta estruturada, o estado Pass é usado para formatar a saída JSON. 
+
 Esta técnica pode ser usada para manter as Tarefas flexíveis e usar o estado de passagem para filtrar/formatar a saída para manter o contrato da API.
 
 Cada Tarefa que realiza a invocação ao Bedrock tem um prompt específico, e você pode tentar modificar/adicionar/excluir para experimentar a solução.
